@@ -337,7 +337,7 @@ jobs:
       # Test_Project_Path: your-test-project-path                 # Replace with the path to your test project, i.e. MyWpfApp.Tests\MyWpfApp.Tests.csproj.
       Wap_Project_Directory: ClassIsland/ClassIsland    # Replace with the Wap project directory relative to the solution, i.e. MyWpfApp.Package.
       Wap_Project_Path: ClassIsland/ClassIsland/ClassIsland.csproj                   # Replace with the path to your Wap project, i.e. MyWpf.App.Package\MyWpfApp.Package.wapproj.
-    name: Build Nuget Packages
+    name: Build MSIX Package
     strategy:
       matrix:
         configuration: [Release]
@@ -385,7 +385,7 @@ jobs:
         with:
           name: MSIX Package
           path: ${{ env.Solution_Name }}\\Packages
-          
+
   publish:
     runs-on: windows-2022
     env:
