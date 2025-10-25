@@ -330,6 +330,7 @@ jobs:
           path: ./out/*.nupkg
 
   build_msix:
+    needs: [ pack_app ]
     runs-on: windows-2022  # For a list of available runner types, refer to
     # https://help.github.com/en/actions/reference/workflow-syntax-for-github-actions#jobsjob_idruns-on
     env:
