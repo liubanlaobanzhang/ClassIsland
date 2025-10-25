@@ -392,7 +392,7 @@ jobs:
     env:
       isTestMode: ${{ github.event.inputs.is_test_mode == true }}
     if: ${{ always() && success('pack_app') && success('build_nupkg') && github.event.inputs.release_tag && github.event_name != 'pull_request' }}
-    needs: [ pack_app, build_nupkg ]
+    needs: [ pack_app, build_nupkg, build_msix ]
     concurrency:
       group: "publish-public"
     environment:
