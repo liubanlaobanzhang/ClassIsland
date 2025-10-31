@@ -36,6 +36,9 @@
         <AppxPackageSigningEnabled>false</AppxPackageSigningEnabled>
         <EnablePreviewMsixTooling>true</EnablePreviewMsixTooling> -->
     </PropertyGroup>
+    <ItemGroup>
+	    <None Update="AppxManifest.xml" CopyToOutputDirectory="PreserveNewest" />
+    </ItemGroup>
     <ItemGroup Condition="'$(IsMsix)'=='true'">
         <AppxManifest Include="Package.appxmanifest">
             <SubType>Designer</SubType>
