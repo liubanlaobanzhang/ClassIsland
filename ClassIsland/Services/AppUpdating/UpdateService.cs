@@ -191,7 +191,14 @@ public class UpdateService : IHostedService, INotifyPropertyChanged
 
     private async Task AppStartupBackground()
     {
-        CleanupPrevDeployments();
+        if (Settings.LastUpdateStatus == UpdateStatus.UpdateDeployed)
+        {
+            CleanupPrevDeployments();
+            await PlatformServices.DesktopToastService.ShowToastAsync("更新成功",
+                $"应用已更新到 {AppBase.AppVersion}，点击以查看详细信息。", UpdateNotificationClickedCallback);
+            Settings.LastUpdateStatus = UpdateStatus.UpToDate;
+        }
+        
         await CheckUpdateAsync();
 
         if (Settings.UpdateMode < 2)
@@ -202,7 +209,6 @@ public class UpdateService : IHostedService, INotifyPropertyChanged
         if (Settings.LastUpdateStatus == UpdateStatus.UpdateAvailable)
         {
             await DownloadUpdateAsync();
-            Settings.AutoInstallUpdateNextStartup = false;
         }
 
         if (Settings.UpdateMode < 3)
@@ -212,7 +218,7 @@ public class UpdateService : IHostedService, INotifyPropertyChanged
 
         if (Settings.LastUpdateStatus == UpdateStatus.UpdateDownloaded)
         {
-            Settings.AutoInstallUpdateNextStartup = true;
+            await ExtractUpdateAsync();
         }
     }
 
@@ -250,6 +256,10 @@ public class UpdateService : IHostedService, INotifyPropertyChanged
             CurrentWorkingStatus = UpdateWorkingStatus.CheckingUpdates;
             DistributionMetadata = await RequestHelper.SaveJson<DistributionMetadata>(
                 new Uri("api/v1/public/distributions/metadata", UriKind.Relative), UpdateDistributionMetadataPath);
+            if (!DistributionMetadata.Channels.ContainsKey(Settings.SelectedUpdateChannelV3))
+            {
+                Settings.SelectedUpdateChannelV3 = DistributionMetadata.DefaultChannelId;
+            }
             var latest = await RequestHelper.GetJson<LatestDistributionInfoMinResponse>(
                 new Uri($"api/v1/public/distributions/latest/{Settings.SelectedUpdateChannelV3}", UriKind.Relative));
             spanGetIndex.Finish(SpanStatus.Ok);
@@ -577,7 +587,7 @@ public class UpdateService : IHostedService, INotifyPropertyChanged
             Logger.LogInformation("正在部署应用更新");
             var fileMapJson = await File.ReadAllTextAsync(Path.Combine(UpdateTempPath, "FileMap.json"));
             var fileMapSig = await File.ReadAllTextAsync(Path.Combine(UpdateTempPath, "FileMap.json.sig"));
-            var deploymentLock = ConfigureFileHelper.LoadConfigUnWrapped<DeploymentLock>(Path.Combine(UpdateTempPath, "FileMap.json.sig"), false);
+            var deploymentLock = ConfigureFileHelper.LoadConfigUnWrapped<DeploymentLock>(Path.Combine(UpdateTempPath, "Deployment.lock"), false);
             if (!deploymentLock.FileMapSha512.SequenceEqual(SHA512.HashData(Encoding.UTF8.GetBytes(fileMapJson))))
             {
                 throw new InvalidOperationException("文件图哈希与下载时不符合，可能已经损坏");
@@ -725,12 +735,29 @@ public class UpdateService : IHostedService, INotifyPropertyChanged
                         var existedPath = Path.Combine(existedFileRoot, path);
                         
                         Logger.LogTrace("Deploy Copy EXISTED {} -> {}", existedPath, targetPath);
+                        File.Copy(existedPath, targetPath, true);
+                        continue;
                     }
                     
                     var hashHex = Convert.ToHexString(fileInfo.FileSha512);
                     var fullPath = Path.Combine(extractedPath, hashHex[..2], hashHex);
                     Logger.LogTrace("Deploy Copy {} -> {}", fullPath, targetPath);
                     File.Copy(fullPath, targetPath, true);
+                }
+            }
+
+            if (OperatingSystem.IsLinux() && AppBase.Current.PackagingType == "folder")
+            {
+                using var proc = Process.Start(new ProcessStartInfo("chmod",
+                [
+                    "+x",
+                    Path.GetFullPath(Path.Combine(root,
+                        "ClassIsland"))
+                ]));
+                var task = proc?.WaitForExitAsync();
+                if (task != null)
+                {
+                    await task;
                 }
             }
             File.Copy(Path.Combine(UpdateTempPath, "FileMap.json"), Path.Combine(appPath, "files.json"));
